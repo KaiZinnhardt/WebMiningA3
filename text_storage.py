@@ -74,7 +74,7 @@ def summarize_text_for_image(text_summary, response_text, num_clusters=4, num_se
 
 
 if __name__ == '__main__':
-    storage = TextStorage("gpt-3.5-turbo")
+    #storage = TextStorage("gpt-3.5-turbo")
     text ="""Once upon a time, in a faraway land, there was a magical castle that stood tall and proud against the stormy night sky. The castle was made of shining stones that sparkled in the moonlight, and it had towering turrets that reached up to the stars.
 
 Outside, rain poured down and lightning flashed across the sky, but inside the castle walls, all was warm and cozy. The flickering candlelight cast dancing shadows on the walls, making the castle feel like a mysterious and enchanting place.
