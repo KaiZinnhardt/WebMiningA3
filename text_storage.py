@@ -8,19 +8,43 @@ from nltk.tokenize import sent_tokenize
 
 
 def summarize_text(prev_text, text, model):
+    """
+    Summarizes the generated text with the previously given responses of openai
+    :param prev_text: a string containing the previously generated response
+    :param text: a string containg the response
+    :param model: the model of openai that is being used to create the responses
+    :return: generate a string containing the summary
+    """
+    # concatenate the text_summary with the response_text
     text_to_summarize = prev_text + "\n\n" + text
+    #Count the number of tokens that openai recognizes
     num_tokens = token_counts(text_to_summarize,model)
+    #Set the number of clusters and sentences for each cluster
     num_sentences_per_cluster=10
-    #print(text_to_summarize)
+    num_clusters=7
+    #Loops as long as the number of tokens is bigger than xxx
     while num_tokens > 3000:
-        text_to_summarize = generate_semantic_summary(text_to_summarize, num_sentences_per_cluster=num_sentences_per_cluster)
-        num_sentences_per_cluster -=1
+        # generate the summary
+        text_to_summarize = generate_semantic_summary(text_to_summarize, num_clusters=num_clusters, num_sentences_per_cluster=num_sentences_per_cluster)
+        #reduce dimensionality of summary
+        if num_sentences_per_cluster < num_clusters:
+            num_clusters -=1
+        else:
+            num_sentences_per_cluster -=1
+        #counts the number of tokens that openapi recognizes
         num_tokens = token_counts(text_to_summarize,model)
+
     return text_to_summarize
 
 
 
 def token_counts(text,model):
+    """
+    counts the number of tokens in a text message that openai recognizes
+    :param text: The text to count the tokens for
+    :param model: the openai model that is used
+    :return: the integer number of tokens
+    """
     encoding = tiktoken.encoding_for_model(model)
     encodedString = encoding.encode(text)
     return len(encodedString)
@@ -34,6 +58,13 @@ def calculateCosts(completionUsage):
 
 # Function to generate a semantically ordered summary
 def generate_semantic_summary( text, num_clusters=7, num_sentences_per_cluster=10):
+    """
+    Generates a semantic summary of the text input that is given. This code was created in collaboration with chatgpt.
+    :param text: the test to create a summary for
+    :param num_clusters: the number of clusters that the K-means algorithm should use to cluster the text
+    :param num_sentences_per_cluster: the number of sentences for each cluster the summary should conatin
+    :return:
+    """
     # Load pre-trained sentence embeddings model
     model = SentenceTransformer('bert-base-nli-mean-tokens')
 
@@ -68,8 +99,19 @@ def generate_semantic_summary( text, num_clusters=7, num_sentences_per_cluster=1
     return summary
 
 def summarize_text_for_image(text_summary, response_text, num_clusters=4, num_sentences_per_cluster=1):
+    """
+    Summarize the text for the image prompt
+    :param text_summary: previous text summary
+    :param response_text: newly created content
+    :param num_clusters: number of clusters that the summary should build
+    :param num_sentences_per_cluster: number of sentences for each clusters that the summary should contain
+    :return: the final summary as a string
+    """
+    #concatenate the text_summary with the response_text
     text_to_summarize = text_summary + "\n" + response_text
+    #generate the summary
     text_to_summarize = generate_semantic_summary(text_to_summarize,num_clusters=num_clusters, num_sentences_per_cluster=num_sentences_per_cluster)
+    #return the summary
     return text_to_summarize
 
 

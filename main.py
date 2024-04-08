@@ -23,8 +23,13 @@ gpt_model = "gpt-4"#"gpt-3.5-turbo"
 
 
 def first_response_generation(prompt):
+    """
+    This the response to the first prompt that the user has entered
+    :param prompt: the user input for which the bot bot will generate text
+    """
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
+        #API call to generate the response
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
             messages=[
@@ -34,8 +39,12 @@ def first_response_generation(prompt):
             ],
             stream=True,
         )
+        #create the response text as a stream
         response_text = st.write_stream(stream)
+        #image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image('', response_text,5, 2)
+        #Create a spinner to create a visual while waiting for the response
         with st.spinner("Generating image"):
+            #API call to generate the image
             response_image = client.images.generate(
                 model="dall-e-3",
                 prompt=prompt,
@@ -43,18 +52,29 @@ def first_response_generation(prompt):
                 quality="standard",
                 n=1,
             )
+            #extract the url
             image_url = response_image.data[0].url
-            image = Image.open(BytesIO(requests.get(image_url).content))
-            st.image(image)
+            try:
+                #display the image
+                image = Image.open(BytesIO(requests.get(image_url).content))
+                st.image(image)
+            except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+                st.markdown("***Image Couldn't be loaded***")
+    #Create a summary of the text, where 'st.session_state.text_summary' is ''
     text_summary = text_storage.summarize_text(st.session_state.text_summary, response_text, gpt_model)
+    #Save the summary in a streamlit session state variable
     st.session_state.text_summary = text_summary
+    #Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
 
-# Streamlit application
 def iterative_response_generation(prompt):
+    """
+    This the iterative response once the user has started the conversation. Thus this includes the three potential options
+    :param prompt: the user input for which the bot will generate text
+    """
     # Display assistant response in chat message container
-    check = st.session_state.text_summary
     with st.chat_message("assistant"):
+        # API call to generate the response, include the summary of the previous responses to give the API the necessary knowledge in a cost efficient way
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
             messages=[
@@ -66,10 +86,13 @@ def iterative_response_generation(prompt):
             ],
             stream=True,
         )
+        #create the response text as a stream
         response_text = st.write_stream(stream)
-
-        image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image(st.session_state["text_summary"],response_text,3,1)
+        #creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
+        image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image(st.session_state["text_summary"],response_text,5,2)
+        #Create an interactive graphic while waiting for the image to be generated
         with st.spinner("Generating image"):
+            # API call to generate the image
             response_image = client.images.generate(
                 model="dall-e-3",
                 prompt=image_prompt,
@@ -77,13 +100,23 @@ def iterative_response_generation(prompt):
                 quality="standard",
                 n=1,
             )
+            # extract the url
             image_url = response_image.data[0].url
-            image = Image.open(BytesIO(requests.get(image_url).content))
-            st.image(image)
-
+            try:
+                # display the image
+                image = Image.open(BytesIO(requests.get(image_url).content))
+                st.image(image)
+            except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+                st.markdown("***Image Couldn't be loaded***")
+        #Saves the first part of the interaction
+        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
+        #Create an informative comment for the user
         st.write("Choose an option on how to extend the Bedtime Story")
+        #Create the keywords for the three options
+        #API call for the first option
         option_1 = client.chat.completions.create(
             model=st.session_state["openai_model"],
+            #gives as much contentext as possible while staying cost efficient
             messages=[
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
@@ -94,12 +127,13 @@ def iterative_response_generation(prompt):
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
             ],
+            #limits the output space such that only 1-3 keywords are returned
             max_tokens=9
         )
-
-
+        # API call for the second option
         option_2 = client.chat.completions.create(
             model=st.session_state["openai_model"],
+            # gives as much contentext as possible while staying cost efficient
             messages=[
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
@@ -110,11 +144,13 @@ def iterative_response_generation(prompt):
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
             ],
+            # limits the output space such that only 1-3 keywords are returned
             max_tokens=9
         )
-
+        # API call for the third option
         option_3 = client.chat.completions.create(
             model=st.session_state["openai_model"],
+            # gives as much contentext as possible while staying cost efficient
             messages=[
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
@@ -125,29 +161,35 @@ def iterative_response_generation(prompt):
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
             ],
+            # limits the output space such that only 1-3 keywords are returned
             max_tokens=9
         )
-        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
-
+        #Provides the user with the three options as buttons with a text above showing the number of option it displays
         st.write("Option 1")
         option_1 = option_1.choices[0].message.content
-        with st.spinner("Creating the story"):
-            st.button(option_1,key=button1_key, on_click=create_option_content,args=[prompt,option_1,response_text])
+        st.button(option_1,key=button1_key, on_click=create_option_content,args=[prompt,option_1,response_text])
 
         st.write("Option 2")
         option_2 = option_2.choices[0].message.content
-        with st.spinner("Creating the story"):
-            st.button(option_2, key=button2_key, on_click=create_option_content,args=[prompt,option_2,response_text])
+        st.button(option_2, key=button2_key, on_click=create_option_content,args=[prompt,option_2,response_text])
 
         st.write("Option 3")
         option_3 = option_3.choices[0].message.content
-        with st.spinner("Creating the story"):
-            st.button(option_3, key=button3_key, on_click=create_option_content,args=[prompt,option_3,response_text])
+        st.button(option_3, key=button3_key, on_click=create_option_content,args=[prompt,option_3,response_text])
 
 
 
 def create_option_content(prompt,keywords,response_text):
+    """
+
+    Creates the response to the keywords that the user choose.
+    :param prompt: the input form the user
+    :param keywords: the keywords that the user choose
+    :param response_text: the previous response text of the first part of the interaction
+    """
+    #The context where the message will be given in.
     with st.chat_message("assistant"):
+        # API call to generate the response, include the summary of the previous responses, the response text of the first part of this response, the three key words to give the API the necessary knowledge in a cost efficient way
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
             messages=[
@@ -164,15 +206,23 @@ def create_option_content(prompt,keywords,response_text):
             ],
             stream=True,
         )
+        # create the response text as a stream
         response_text = st.write_stream(stream)
+    # Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text})
+    # Create a summary of the text
     text_summary= text_storage.summarize_text(st.session_state.text_summary,response_text,gpt_model)
+    # Save the summary in a streamlit session state variable
     st.session_state.text_summary=text_summary
 
 
 def create_final_story():
+    """
+    Creates the final story for the bedtime story while taking all of the information into account that it was given.
+    """
+    # The context where the message will be given in.
     with st.chat_message("assistant"):
-        #print(st.session_state.text_summary)
+        # API call to generate the response, include the summary of the previous responses to give the API the necessary knowledge in a cost efficient way
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
             messages=[
@@ -182,10 +232,15 @@ def create_final_story():
             ],
             stream=True,
         )
+        #Header of this section
         st.markdown("### Final Story")
+        # create the response text as a stream
         response_text = st.write_stream(stream)
-        image_prompt = "Create an image for the following context:" + response_text
+        # creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
+        image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image('',response_text,5,2)
+        # Create an interactive graphic while waiting for the image to be generated
         with st.spinner("Generating image"):
+            # API call to generate the image
             response_image = client.images.generate(
                 model="dall-e-3",
                 prompt=image_prompt,
@@ -193,12 +248,19 @@ def create_final_story():
                 quality="standard",
                 n=1,
             )
+            # extract the url
             image_url = response_image.data[0].url
-            image = Image.open(BytesIO(requests.get(image_url).content))
-            st.image(image)
+            try:
+                # display the image
+                image = Image.open(BytesIO(requests.get(image_url).content))
+                st.image(image)
+            except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+                st.markdown("***Image Couldn't be loaded***")
+    # Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
-
+    # Create a summary of the text
     text_summary= text_storage.summarize_text(st.session_state.text_summary,response_text,gpt_model)
+    # Save the summary in a streamlit session state variable
     st.session_state.text_summary = text_summary
 
 def main():
@@ -221,15 +283,15 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            #tries to fetch an image in the message state
             if "image" in message:
                 try:
+                    #displays the image
                     image = Image.open(BytesIO(requests.get(message["image"]).content))
-                except UnidentifiedImageError or UnboundLocalError:
-                    st.write("Image Couldn't be loaded")
-                st.image(image)
-            if "option" in message:
-                st.markdown("The choosen extension: \n"+message["option"])
-
+                    st.image(image)
+                except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+                    st.markdown("***Image Couldn't be loaded***")
+    #Create the hint for the user how to complete the story
     st.sidebar.markdown("***Hint***: \nTo complete the story please enter: 'Complete the story'")
     # React to user input
     if prompt := st.chat_input("Feed me with ideas for a Bedtime story... ", key=input1_key):
@@ -239,16 +301,20 @@ def main():
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
+    #Checks if the last message was the assistant or the user as the assistant should only come after the user
     try:
         if st.session_state.messages[-1]["role"] != "assistant":
+            #Checks if the user wants to complete the story
             if 'complete the story' not in prompt.lower():
+                #Decides on whether it is the first conversation on an iterative conversation step
                 if len(st.session_state.text_summary) ==0:
                     first_response_generation(prompt)
-                    #first_iteration = False
                 else:
                     iterative_response_generation(prompt)
             else:
+                #Checks if the user has given enought content to finalize the story
                 if len(st.session_state.text_summary) == 0:
+                    #The user has to give more information
                     with st.chat_message("assistant"):
                         st.write("Give me first ideas to generate a story")
                         st.session_state.messages.append({"role": "assistant", "content": "Give me first ideas to generate a story"})
@@ -256,8 +322,6 @@ def main():
                     create_final_story()
     except IndexError as e:
         st.write("Start your Story")
-
-    #if len(st.session_state.messages) ==1:
 
 
 
