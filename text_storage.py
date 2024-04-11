@@ -7,7 +7,7 @@ import numpy as np
 from nltk.tokenize import sent_tokenize
 
 
-def summarize_text(prev_text, text, model):
+def summarize_text(prev_text, text, model,max_tokens=1700):
     """
     Summarizes the generated text with the previously given responses of openai
     :param prev_text: a string containing the previously generated response
@@ -20,10 +20,10 @@ def summarize_text(prev_text, text, model):
     #Count the number of tokens that openai recognizes
     num_tokens = token_counts(text_to_summarize,model)
     #Set the number of clusters and sentences for each cluster
-    num_sentences_per_cluster=10
-    num_clusters=7
+    num_sentences_per_cluster=12
+    num_clusters=10
     #Loops as long as the number of tokens is bigger than xxx
-    while num_tokens > 3000:
+    while num_tokens > max_tokens:
         # generate the summary
         text_to_summarize = generate_semantic_summary(text_to_summarize, num_clusters=num_clusters, num_sentences_per_cluster=num_sentences_per_cluster)
         #reduce dimensionality of summary
@@ -98,6 +98,28 @@ def generate_semantic_summary( text, num_clusters=7, num_sentences_per_cluster=1
 
     return summary
 
+from transformers import BartForConditionalGeneration, BartTokenizer
+def text_summarizer_v2(text):
+
+    print("loading")
+    # Load pre-trained BART model and tokenizer
+    model_name = 'facebook/bart-large-cnn'
+    tokenizer = BartTokenizer.from_pretrained(model_name)
+    model = BartForConditionalGeneration.from_pretrained(model_name)
+    print("Done loading")
+    # Prepare input for summarization
+    #text = "Once upon a time, in a faraway kingdom, there was a brave prince who embarked on a quest to rescue a princess from an evil dragon."
+
+    # Tokenize input text
+    inputs = tokenizer([text], max_length=1024, return_tensors='pt', truncation=True)
+
+    # Generate summary using pooled_output from BERT
+    summary_ids = model.generate(inputs['input_ids'], num_beams=4, length_penalty=2.0, early_stopping=True)
+
+    # Decode the summary tokens back to text
+    summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    return summary
+
 def summarize_text_for_image(text_summary, response_text, num_clusters=4, num_sentences_per_cluster=1):
     """
     Summarize the text for the image prompt
@@ -114,6 +136,11 @@ def summarize_text_for_image(text_summary, response_text, num_clusters=4, num_se
     #return the summary
     return text_to_summarize
 
+def max_token_calculator(message,model,max_tokens=4000):
+    list_message = str(message)
+    tokens_used = token_counts(list_message,model)
+    setup_loss = 10
+    return max_tokens-tokens_used -setup_loss
 
 if __name__ == '__main__':
     #storage = TextStorage("gpt-3.5-turbo")
@@ -132,8 +159,19 @@ The knight, drawn in by the warmth of their friendship and intrigued by the prom
 Through their combined courage and determination, they finally reached the sorcerer's lair, where a fierce battle of good against evil unfolded. The knight's bravery, the fairy's clever tricks, the wizard's powerful spells, and the giant's strength proved to be a formidable team as they fought against the dark forces threatening the kingdom.
 
 In the end, the power of their friendship and the magic that bound them together was enough to defeat the sorcerer and bring peace back to the land. The knight, forever grateful for the adventure and the companionship of his new friends, knew that their bond would endure long after their heroic quest had come to an end."""
-    storage.summarize_text(text)
-    print(storage.get_summary())
-    sum_text=storage.summarize_text_for_image(text2,4,1)
-    print("\n\n Adding text2 \n\n")
-    print(sum_text)
+    #summarize_text(text)
+    #sum_text=summarize_text_for_image(text2,4,1)
+    #print("\n\n Adding text2 \n\n")
+    #print(sum_text)
+    print("Running summarizer")
+    print(text_summarizer_v2(text))
+    print("Running summarizer 2")
+    print(text_summarizer_v2(text2))
+    #list_of_dicts = [{'a': 1, 'b': 2}, {'c': 3, 'd': 4}, {'e': 5, 'f': 6}]
+    #list_str = str(list_of_dicts)
+    #import json
+    #list_json = json.dumps(list_of_dicts)
+    #print(type(list_str))
+    #print(type(list_json))
+
+

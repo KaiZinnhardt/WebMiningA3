@@ -19,7 +19,18 @@ input1_key = "input1"
 
 # Set OpenAI API key from Streamlit secrets file in the path ".streamlit/secrets.toml"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-gpt_model = "gpt-4"#"gpt-3.5-turbo"
+gpt_model = "gpt-3.5-turbo" #"gpt-4"
+
+
+def moderation_check(input_message):
+    input_message = str(input_message)
+    list_message = [input_message[i:i+2000] for i in range(0, len(input_message), 2000)]
+    for message in list_message:
+        response = client.moderations.create(input=message)
+        if response.results[0].flagged == True:
+            return True
+    return False
+
 
 
 def first_response_generation(prompt):
@@ -30,24 +41,35 @@ def first_response_generation(prompt):
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         #API call to generate the response
-        stream = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            messages=[
+        message = [
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-                {"role": "user", "content": prompt}
-            ],
+                {"role": "user", "content": "Describe the context for a bedtime story using the following prompt:"+prompt+"\n Add a cliffhanger at the end of the story."}
+            ]
+        allowed_tokens = text_storage.max_token_calculator(message,gpt_model)
+        mod_bool = moderation_check(message)
+        if mod_bool == True:
+            st.write("The input is senitized please use an appropriate prompt")
+            return None
+        stream = client.chat.completions.create(
+            model=st.session_state["openai_model"],
+            messages=message,
             stream=True,
+            max_tokens=allowed_tokens
         )
         #create the response text as a stream
         response_text = st.write_stream(stream)
-        #image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image('', response_text,5, 2)
+        image_prompt = "Create an image in a cartoon like style for the following context:" + text_storage.summarize_text_for_image('', response_text,5, 2)
+        mod_bool=moderation_check(image_prompt)
+        if mod_bool == True:
+            st.write("The input is senitized please use an appropriate prompt")
+            return None
         #Create a spinner to create a visual while waiting for the response
         with st.spinner("Generating image"):
             #API call to generate the image
             response_image = client.images.generate(
                 model="dall-e-3",
-                prompt=prompt,
+                prompt=image_prompt,
                 size="1024x1024",
                 quality="standard",
                 n=1,
@@ -75,22 +97,34 @@ def iterative_response_generation(prompt):
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         # API call to generate the response, include the summary of the previous responses to give the API the necessary knowledge in a cost efficient way
-        stream = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            messages=[
+        message=[
                 {"role": "system",
                  "content": "You are a helpful assistant that describe the scenary of a bedtime story."},
                 {"role":"user","content": "Summarize the previous fairytale for further extending the story"},
                 {"role":"assistant","content": st.session_state.text_summary},
                 {"role": "user", "content": "While taking the summarized fairytale into account; create and  describe a scenary in less than 150 words for the following prompt: "+prompt}
-            ],
+            ]
+        allowed_tokens = text_storage.max_token_calculator(message, gpt_model)
+        print(allowed_tokens)
+        mod_bool = moderation_check(message)
+        if mod_bool == True:
+            st.write("The input is senitized please use an appropriate prompt")
+            return None
+        stream = client.chat.completions.create(
+            model=st.session_state["openai_model"],
+            messages=message,
             stream=True,
+            max_tokens=allowed_tokens
         )
         #create the response text as a stream
         response_text = st.write_stream(stream)
         #creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
-        image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image(st.session_state["text_summary"],response_text,5,2)
+        image_prompt = "Create an image in a cartoon like style for the following context:" + text_storage.summarize_text_for_image(st.session_state["text_summary"],response_text,5,2)
         #Create an interactive graphic while waiting for the image to be generated
+        mod_bool = moderation_check(image_prompt)
+        if mod_bool == True:
+            st.write("The input is senitized please use an appropriate prompt")
+            return None
         with st.spinner("Generating image"):
             # API call to generate the image
             response_image = client.images.generate(
@@ -114,10 +148,7 @@ def iterative_response_generation(prompt):
         st.write("Choose an option on how to extend the Bedtime Story")
         #Create the keywords for the three options
         #API call for the first option
-        option_1 = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            #gives as much contentext as possible while staying cost efficient
-            messages=[
+        option_message = [
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
                 {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
@@ -126,7 +157,23 @@ def iterative_response_generation(prompt):
                  "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
-            ],
+            ]
+        if text_storage.max_token_calculator(message,gpt_model)<9:
+            option_message =[
+                {"role": "system",
+                 "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
+                {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
+                {"role": "assistant", "content": st.session_state.text_summary},
+                {"role": "user",
+                 "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt}]
+        mod_bool = moderation_check(option_message)
+        if mod_bool == True:
+            st.write("The input is senitized please use an appropriate prompt")
+            return None
+        option_1 = client.chat.completions.create(
+            model=st.session_state["openai_model"],
+            #gives as much contentext as possible while staying cost efficient
+            messages= option_message,
             #limits the output space such that only 1-3 keywords are returned
             max_tokens=9
         )
@@ -134,16 +181,7 @@ def iterative_response_generation(prompt):
         option_2 = client.chat.completions.create(
             model=st.session_state["openai_model"],
             # gives as much contentext as possible while staying cost efficient
-            messages=[
-                {"role": "system",
-                 "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-                {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
-                {"role": "assistant", "content": st.session_state.text_summary},
-                {"role": "user",
-                 "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
-                {"role": "assistant", "content": response_text},
-                {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
-            ],
+            messages=option_message,
             # limits the output space such that only 1-3 keywords are returned
             max_tokens=9
         )
@@ -151,16 +189,7 @@ def iterative_response_generation(prompt):
         option_3 = client.chat.completions.create(
             model=st.session_state["openai_model"],
             # gives as much contentext as possible while staying cost efficient
-            messages=[
-                {"role": "system",
-                 "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-                {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
-                {"role": "assistant", "content": st.session_state.text_summary},
-                {"role": "user",
-                 "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
-                {"role": "assistant", "content": response_text},
-                {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
-            ],
+            messages=option_message,
             # limits the output space such that only 1-3 keywords are returned
             max_tokens=9
         )
@@ -190,9 +219,7 @@ def create_option_content(prompt,keywords,response_text):
     #The context where the message will be given in.
     with st.chat_message("assistant"):
         # API call to generate the response, include the summary of the previous responses, the response text of the first part of this response, the three key words to give the API the necessary knowledge in a cost efficient way
-        stream = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            messages=[
+        message = [
                 {"role": "system",
                  "content": "You are a helpful assistant that describe the scenary of a bedtime story."},
                 {"role": "user", "content": "Summarize the previous fairytale"},
@@ -202,9 +229,18 @@ def create_option_content(prompt,keywords,response_text):
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content":"Create three key words just seperated by commas to extend the story, with the following input: " + prompt},
                 {"role": "assistant", "content": keywords},
-                {"role": "user", "content": "Creatively extend the story from the fairytale summary while taking these keyword into acount: "+keywords+"."}
-            ],
+                {"role": "user", "content": "Creatively extend the story from the fairytale summary while taking the keyword of "+keywords+" into acount. Add a cliff hanger at the end of the story"}
+            ]
+        allowed_tokens = text_storage.max_token_calculator(message,gpt_model)
+        mod_bool = moderation_check(message)
+        if mod_bool == True:
+            st.write("The input is senitized please use an appropriate prompt")
+            return None
+        stream = client.chat.completions.create(
+            model=st.session_state["openai_model"],
+            messages=message,
             stream=True,
+            max_tokens=allowed_tokens
         )
         # create the response text as a stream
         response_text = st.write_stream(stream)
@@ -221,23 +257,32 @@ def create_final_story():
     Creates the final story for the bedtime story while taking all of the information into account that it was given.
     """
     # The context where the message will be given in.
+    print(st.session_state.text_summary)
+    message = [
+        {"role": "system",
+         "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
+        {"role": "user",
+         "content": "Create a elaborate creative bedtime story, with a maximum of 1200 words, for a child while using the following summary: " + st.session_state.text_summary}
+    ]
+    allowed_tokens = text_storage.max_token_calculator(message,gpt_model)
+    mod_bool = moderation_check(message)
+    if mod_bool == True:
+        st.write("The input is senitized please use an appropriate prompt")
+        return None
     with st.chat_message("assistant"):
         # API call to generate the response, include the summary of the previous responses to give the API the necessary knowledge in a cost efficient way
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
-            messages=[
-                {"role": "system",
-                 "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-                {"role": "user", "content": "Create a creative bedtime story for a child while using the following summary: "+st.session_state.text_summary}
-            ],
+            messages=message,
             stream=True,
+            max_tokens=allowed_tokens
         )
         #Header of this section
         st.markdown("### Final Story")
         # create the response text as a stream
         response_text = st.write_stream(stream)
         # creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
-        image_prompt = "Create an image for the following context:" + text_storage.summarize_text_for_image('',response_text,5,2)
+        image_prompt = "Create an image in a cartoon like style for the following context:" + text_storage.summarize_text_for_image('',response_text,5,2)
         # Create an interactive graphic while waiting for the image to be generated
         with st.spinner("Generating image"):
             # API call to generate the image
@@ -330,3 +375,6 @@ if __name__ == "__main__":
     main()
     #Explain the scenery of a fairytale castle on a dark and stormy night.
     #A knight is riding slowly towards the castle
+
+    #explain the scenary of a little boy watching the world cup final in Brazil
+    #A few seconds later the TV turned on and in the images of the tv Brazil scored the goal to win the world cup.
