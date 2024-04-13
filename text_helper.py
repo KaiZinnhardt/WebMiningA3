@@ -137,10 +137,21 @@ def summarize_text_for_image(text_summary, response_text, num_clusters=4, num_se
     return text_to_summarize
 
 def max_token_calculator(message,model,max_tokens=4000):
+    """
+    Calculates the maximum number of tokens that the answer can give witout exceeding the context window
+    :param message: the input message to the LLM. This is given as a String
+    :param model: The model that is used for the OpenAI interaction
+    :param max_tokens: Then number of tokens that the context window is allowed to have. Is set to 4000 tokens by defaul
+    :return: An integer number of how many tokens are allowed.
+    """
+    #transform a list into a string
     list_message = str(message)
+    #Count the number of tokens
     tokens_used = token_counts(list_message,model)
-    setup_loss = 10
-    return max_tokens-tokens_used -setup_loss
+    #Incorporate an overhead loss.
+    setup_loss = 20
+    #return the maximum number of tokens that are allowed as a response.
+    return max_tokens - tokens_used - setup_loss
 
 if __name__ == '__main__':
     #storage = TextStorage("gpt-3.5-turbo")
