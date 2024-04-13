@@ -7,7 +7,7 @@ import numpy as np
 from nltk.tokenize import sent_tokenize
 
 
-def summarize_text(prev_text, text, model,max_tokens=1700):
+def summarize_text(prev_text, text, model,max_tokens=2200):
     """
     Summarizes the generated text with the previously given responses of openai
     :param prev_text: a string containing the previously generated response
@@ -20,14 +20,14 @@ def summarize_text(prev_text, text, model,max_tokens=1700):
     #Count the number of tokens that openai recognizes
     num_tokens = token_counts(text_to_summarize,model)
     #Set the number of clusters and sentences for each cluster
-    num_sentences_per_cluster=12
-    num_clusters=10
+    num_sentences_per_cluster=15
+    num_clusters=12
     #Loops as long as the number of tokens is bigger than xxx
     while num_tokens > max_tokens:
         # generate the summary
         text_to_summarize = generate_semantic_summary(text_to_summarize, num_clusters=num_clusters, num_sentences_per_cluster=num_sentences_per_cluster)
         #reduce dimensionality of summary
-        if num_sentences_per_cluster < num_clusters:
+        if num_sentences_per_cluster*2 < num_clusters:
             num_clusters -=1
         else:
             num_sentences_per_cluster -=1
@@ -114,7 +114,7 @@ def text_summarizer_v2(text):
     inputs = tokenizer([text], max_length=1024, return_tensors='pt', truncation=True)
 
     # Generate summary using pooled_output from BERT
-    summary_ids = model.generate(inputs['input_ids'], num_beams=4, length_penalty=2.0, early_stopping=True)
+    summary_ids = model.generate(inputs['input_ids'], num_beams=10, length_penalty=1.5, early_stopping=True)
 
     # Decode the summary tokens back to text
     summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)

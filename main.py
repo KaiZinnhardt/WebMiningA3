@@ -262,7 +262,7 @@ def create_final_story():
         {"role": "system",
          "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
         {"role": "user",
-         "content": "Create a elaborate creative bedtime story, with a maximum of 1200 words, for a child while using the following summary: " + st.session_state.text_summary}
+         "content": "Create a creative bedtime story, with a maximum of 1000 words, for a child while using the following summary: " + st.session_state.text_summary}
     ]
     allowed_tokens = text_storage.max_token_calculator(message,gpt_model)
     mod_bool = moderation_check(message)
