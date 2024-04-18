@@ -3,7 +3,7 @@ import text_helper
 
 #Import Streamlit and the openai API
 import streamlit as st
-from openai import OpenAI
+from openai import OpenAI, BadRequestError
 
 #libraries for displaying images
 from PIL import Image, UnidentifiedImageError
@@ -14,12 +14,14 @@ from io import BytesIO
 button1_key = "button1"
 button2_key = "button2"
 button3_key = "button3"
+button4_key = "button4"
 input1_key = "input1"
+input2_key = "input2"
 
 
 # Set OpenAI API key from Streamlit secrets file in the path ".streamlit/secrets.toml"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-gpt_model = "gpt-3.5-turbo" #"gpt-4"
+gpt_model = "gpt-4" #"gpt-3.5-turbo"
 
 
 def moderation_check(input_message):
@@ -28,9 +30,19 @@ def moderation_check(input_message):
     :param input_message: Is the communication stream that the user give the API to generate a response tailored to this content.
     :return: True if the input contains sensored information and false if the input does not contain sensored information
     """
+    #transforms the array into a string
     input_message = str(input_message)
-    list_message = [input_message[i:i+2000] for i in range(0, len(input_message), 2000)]
-    for message in list_message:
+    #splits the string after every 2000 characters
+    list_message1 = [input_message[i:i+1900] for i in range(0, len(input_message), 1900)]
+    #checks iteratively if the message contains any vulnerabilities
+    for message in list_message1:
+        response = client.moderations.create(input=message)
+        if response.results[0].flagged == True:
+            return True
+    #takes a different split parameter
+    list_message2 = [input_message[i:i + 1200] for i in range(0, len(input_message), 1200)]
+    # checks iteratively if the message contains any vulnerabilities
+    for message in list_message1:
         response = client.moderations.create(input=message)
         if response.results[0].flagged == True:
             return True
@@ -41,7 +53,7 @@ def moderation_check(input_message):
 def first_response_generation(prompt):
     """
     This the response to the first prompt that the user has entered
-    :param prompt: the user input for which the bot bot will generate text
+    :param prompt: the user input for which the chatbot will generate text
     """
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
@@ -59,6 +71,7 @@ def first_response_generation(prompt):
         if mod_bool == True:
             st.write("The input is senitized please use an appropriate prompt")
             return None
+        #Perform the API call
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
             messages=message,
@@ -79,22 +92,24 @@ def first_response_generation(prompt):
             return None
         #Create a spinner to create a visual while waiting for the response
         with st.spinner("Generating image"):
-            #API call to generate the image
-            response_image = client.images.generate(
-                model="dall-e-3",
-                prompt=image_prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1,
-            )
-            #extract the url
-            image_url = response_image.data[0].url
             try:
+                #API call to generate the image
+                response_image = client.images.generate(
+                    model="dall-e-3",
+                    prompt=image_prompt,
+                    size="1024x1024",
+                    quality="standard",
+                    n=1,
+                )
+                #extract the url
+                image_url = response_image.data[0].url
                 #display the image
                 image = Image.open(BytesIO(requests.get(image_url).content))
                 st.image(image)
             except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
+            except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
+                st.markdown("Could not display image. Received the following error message: " + str(e))
     #Create a summary of the text, where 'st.session_state.text_summary' is ''
     text_summary = text_helper.summarize_text(st.session_state.text_summary, response_text, gpt_model)
     #Save the summary in a streamlit session state variable
@@ -115,7 +130,7 @@ def iterative_response_generation(prompt):
                  "content": "You are a helpful assistant that describe the scenary of a bedtime story."},
                 {"role":"user","content": "Summarize the previous fairytale for further extending the story"},
                 {"role":"assistant","content": st.session_state.text_summary},
-                {"role": "user", "content": "While taking the summarized fairytale into account; create and  describe a scenary in less than 150 words for the following prompt: "+prompt}
+                {"role": "user", "content": "While taking the summarized fairytale into account; create and describe a scenary in less than 150 words for the following prompt: "+prompt}
             ]
         # calculate the allowed tokens
         allowed_tokens = text_helper.max_token_calculator(message, gpt_model)
@@ -145,24 +160,24 @@ def iterative_response_generation(prompt):
             return None
         # Create an interactive graphic while waiting for the image to be generated
         with st.spinner("Generating image"):
-            # API call to generate the image
-            response_image = client.images.generate(
-                model="dall-e-3",
-                prompt=image_prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1,
-            )
-            # extract the url
-            image_url = response_image.data[0].url
             try:
+                # API call to generate the image
+                response_image = client.images.generate(
+                    model="dall-e-3",
+                    prompt=image_prompt,
+                    size="1024x1024",
+                    quality="standard",
+                    n=1,
+                )
+                # extract the url
+                image_url = response_image.data[0].url
                 # display the image
                 image = Image.open(BytesIO(requests.get(image_url).content))
                 st.image(image)
             except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
-        #Saves the first part of the interaction
-        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
+            except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
+                st.markdown("Could not display image. Received the following error message: " + str(e))
         #Create an informative comment for the user
         st.write("Choose an option on how to extend the Bedtime Story")
         #Create the keywords for the three options
@@ -177,26 +192,28 @@ def iterative_response_generation(prompt):
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
             ]
-        if text_helper.max_token_calculator(message,gpt_model)<9:
+        #alternative with reduced number of tokens
+        if text_helper.max_token_calculator(option_message,gpt_model)<9:
             option_message =[
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
                 {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
                 {"role": "assistant", "content": st.session_state.text_summary},
                 {"role": "user",
-                 "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt}]
-            # checks if the message is senitized
-            mod_bool = moderation_check(option_message)
-            # if it is senitized it should not give an answer
+                 "content": "Create a list of three key words just seperated by commas to extend the story, with the following input: " + prompt}]
+        # checks if the message is senitized
+        mod_bool = moderation_check(option_message)
+        # if it is senitized it should not give an answer
         if mod_bool == True:
             st.write("The input is senitized please use an appropriate prompt")
             return None
+        #API call for generating the first option
         option_1 = client.chat.completions.create(
             model=st.session_state["openai_model"],
             #gives as much contentext as possible while staying cost efficient
             messages= option_message,
             #limits the output space such that only 1-3 keywords are returned
-            max_tokens=9
+            max_tokens=20
         )
         # API call for the second option
         option_2 = client.chat.completions.create(
@@ -204,7 +221,7 @@ def iterative_response_generation(prompt):
             # gives as much contentext as possible while staying cost efficient
             messages=option_message,
             # limits the output space such that only 1-3 keywords are returned
-            max_tokens=9
+            max_tokens=20
         )
         # API call for the third option
         option_3 = client.chat.completions.create(
@@ -212,26 +229,20 @@ def iterative_response_generation(prompt):
             # gives as much contentext as possible while staying cost efficient
             messages=option_message,
             # limits the output space such that only 1-3 keywords are returned
-            max_tokens=9
+            max_tokens=20
         )
-        #Provides the user with the three options as buttons with a text above showing the number of option it displays
-        st.write("Option 1")
-        option_1 = option_1.choices[0].message.content
-        st.button(option_1,key=button1_key, on_click=create_option_content,args=[prompt,option_1,response_text])
 
-        st.write("Option 2")
-        option_2 = option_2.choices[0].message.content
-        st.button(option_2, key=button2_key, on_click=create_option_content,args=[prompt,option_2,response_text])
-
-        st.write("Option 3")
-        option_3 = option_3.choices[0].message.content
-        st.button(option_3, key=button3_key, on_click=create_option_content,args=[prompt,option_3,response_text])
-
-
+        # Saves the first part of the interaction
+        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url, "option1":option_1, "option2":option_2, "option3":option_3})
+        #save the prompt
+        st.session_state.option_prompt = prompt
+        #save the response from the LLM
+        st.session_state.iterative_scenary_response =response_text
+        #To enable the chat input such that it is necessary to select one of the three choices
+        st.session_state.toggle = False
 
 def create_option_content(prompt,keywords,response_text):
     """
-
     Creates the response to the keywords that the user choose.
     :param prompt: the input form the user
     :param keywords: the keywords that the user choose
@@ -246,11 +257,11 @@ def create_option_content(prompt,keywords,response_text):
                 {"role": "user", "content": "Summarize the previous fairytale"},
                 {"role": "assistant", "content": st.session_state.text_summary},
                 {"role": "user",
-                 "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
+                 "content": "Create and just describe a scenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content":"Create three key words just seperated by commas to extend the story, with the following input: " + prompt},
                 {"role": "assistant", "content": keywords},
-                {"role": "user", "content": "Creatively extend the story from the fairytale summary while taking the keyword of "+keywords+" into acount. Add a cliff hanger at the end of the story"}
+                {"role": "user", "content": "Creatively extend the story from the fairytale summary while taking the keyword of "+keywords+" into acount. Thereby reiterate on the last scenary and add a cliff hanger at the end of the story"}
             ]
         # calculate the allowed tokens
         allowed_tokens = text_helper.max_token_calculator(message, gpt_model)
@@ -260,6 +271,7 @@ def create_option_content(prompt,keywords,response_text):
         if mod_bool == True:
             st.write("The input is senitized please use an appropriate prompt")
             return None
+        #The API Call to generate the response block
         stream = client.chat.completions.create(
             model=st.session_state["openai_model"],
             messages=message,
@@ -271,9 +283,11 @@ def create_option_content(prompt,keywords,response_text):
     # Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text})
     # Create a summary of the text
-    text_summary= text_helper.summarize_text(st.session_state.text_summary,response_text,gpt_model)
+    text_summary = text_helper.summarize_text(st.session_state.text_summary,response_text,gpt_model)
     # Save the summary in a streamlit session state variable
-    st.session_state.text_summary=text_summary
+    st.session_state.text_summary = text_summary
+    #To make sure that the input field is enabled
+    st.session_state.toggle = True
 
 
 def create_final_story():
@@ -281,12 +295,10 @@ def create_final_story():
     Creates the final story for the bedtime story while taking all of the information into account that it was given.
     """
     # The context where the message will be given in.
-    print(st.session_state.text_summary)
     message = [
         {"role": "system",
          "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-        {"role": "user",
-         "content": "Create a creative bedtime story, with a maximum of 1000 words, for a child while using the following summary: " + st.session_state.text_summary}
+        {"role": "user", "content": "Create a creative and engaging bedtime story, with a maximum of 1000 words, for a child while using the following summary: " + st.session_state.text_summary}
     ]
     # calculate the allowed tokens
     allowed_tokens = text_helper.max_token_calculator(message, gpt_model)
@@ -305,7 +317,8 @@ def create_final_story():
             max_tokens=allowed_tokens
         )
         #Header of this section
-        st.markdown("### Final Story")
+        header = "#### Final Story"
+        st.write(header)
         # create the response text as a stream
         response_text = st.write_stream(stream)
         # creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
@@ -320,28 +333,54 @@ def create_final_story():
             return None
         # Create an interactive graphic while waiting for the image to be generated
         with st.spinner("Generating image"):
-            # API call to generate the image
-            response_image = client.images.generate(
-                model="dall-e-3",
-                prompt=image_prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1,
-            )
-            # extract the url
-            image_url = response_image.data[0].url
             try:
+                # API call to generate the image
+                response_image = client.images.generate(
+                    model="dall-e-3",
+                    prompt=image_prompt,
+                    size="1024x1024",
+                    quality="standard",
+                    n=1,
+                )
+                # extract the url
+                image_url = response_image.data[0].url
                 # display the image
                 image = Image.open(BytesIO(requests.get(image_url).content))
                 st.image(image)
             except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
+            except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
+                st.markdown("Could not display image. Received the following error message: " + str(e))
+    #Concatenate the strings
+    content = header + " \n\n " + response_text
     # Append the text messages into the streamlit session state variable
-    st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
-    # Create a summary of the text
-    text_summary= text_helper.summarize_text(st.session_state.text_summary,response_text,gpt_model)
-    # Save the summary in a streamlit session state variable
-    st.session_state.text_summary = text_summary
+    st.session_state.messages.append({"role": "assistant", "content": content, "image": image_url})
+    #Disbalbes the chat input bar
+    st.session_state.complete_story = True
+
+def complete_story():
+    """
+    Is a filtering step for prompts that contain the 'complet the story' prompt line
+    """
+    # Checks if the user has given enough content to finalize the story
+    if len(st.session_state.text_summary) == 0:
+        # The user has to give more information
+        with st.chat_message("assistant"):
+            st.write("Give me first ideas to generate a story")
+            st.session_state.messages.append(
+                {"role": "assistant", "content": "Give me first ideas to generate a story"})
+    else:
+        create_final_story()
+
+
+def toggle_input():
+    """
+    Toggles the chat_input to enable it and disable it in the correct times
+    :return: var: True/False always gives back the opposite of the previous state
+    """
+    st.session_state.toggle = not st.session_state.toggle
+    return st.session_state.toggle
+
 
 def main():
     #first_iteration = True
@@ -359,8 +398,24 @@ def main():
     if "text_summary" not in st.session_state:
         st.session_state.text_summary = ''
 
+    #Initialize Finished Story
+    if "complete_story" not in st.session_state:
+        st.session_state.complete_story = False
+
+    # Initialize prompt for filling in the story after the receiving the key words
+    if "option_prompt" not in st.session_state:
+        st.session_state.option_prompt = ""
+
+    # Initialize the response to the scenary explanation for filling in the story after the receiving the key words
+    if "iterative_scenary_response" not in st.session_state:
+        st.session_state.iterative_scenary_response = ""
+
+    # Initialize Finished Story
+    if "toggle" not in st.session_state:
+        st.session_state.toggle = True
+
     # Display chat messages from history on app rerun
-    for message in st.session_state.messages:
+    for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             #tries to fetch an image in the message state
@@ -371,10 +426,27 @@ def main():
                     st.image(image)
                 except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                     st.markdown("***Image Couldn't be loaded***")
+            #Displays the option for the last keywords completion, to complete the story
+            if i == len(st.session_state.messages) - 1:
+                if "option1" in message:
+                    # Provides the user with the three options as buttons with a text above showing the number of option it displays
+                    st.write("Option 1")
+                    st.button(message["option1"].choices[0].message.content, key=button1_key, on_click=create_option_content,
+                              args=[st.session_state.option_prompt, message["option1"].choices[0].message.content, st.session_state.iterative_scenary_response])
+                if "option2" in message:
+                    st.write("Option 2")
+                    st.button(message["option2"].choices[0].message.content, key=button2_key, on_click=create_option_content,
+                              args=[st.session_state.option_prompt, message["option2"].choices[0].message.content, st.session_state.iterative_scenary_response])
+                if "option3" in message:
+                    st.write("Option 3")
+                    st.button(message["option3"].choices[0].message.content, key=button3_key, on_click=create_option_content,
+                              args=[st.session_state.option_prompt, message["option3"].choices[0].message.content, st.session_state.iterative_scenary_response])
+
     #Create the hint for the user how to complete the story
-    st.sidebar.markdown("***Hint***: \nTo complete the story please enter: 'Complete the story'")
+    st.sidebar.markdown("***Hint***: \n\nTo complete the story please enter: \n\n 'Complete the story'")
+    prompt = st.chat_input("Feed me with ideas for a Bedtime story... ", key=input1_key, disabled=(st.session_state.complete_story or toggle_input()))
     # React to user input
-    if prompt := st.chat_input("Feed me with ideas for a Bedtime story... ", key=input1_key):
+    if prompt:
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -392,14 +464,9 @@ def main():
                 else:
                     iterative_response_generation(prompt)
             else:
-                #Checks if the user has given enought content to finalize the story
-                if len(st.session_state.text_summary) == 0:
-                    #The user has to give more information
-                    with st.chat_message("assistant"):
-                        st.write("Give me first ideas to generate a story")
-                        st.session_state.messages.append({"role": "assistant", "content": "Give me first ideas to generate a story"})
-                else:
-                    create_final_story()
+                complete_story()
+            #Rerun the Application to properly show the additional content.
+            st.rerun()
     except IndexError as e:
         st.write("Start your Story")
 
