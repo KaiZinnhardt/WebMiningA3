@@ -1,6 +1,4 @@
 #Import to get the helper functions place in the text_storage file
-from transformers import BartTokenizer, BartForConditionalGeneration
-
 import text_helper
 
 #Import Streamlit and the openai API
@@ -111,15 +109,15 @@ def first_response_generation(prompt):
                 #display the image
                 image = Image.open(BytesIO(requests.get(image_url).content))
                 st.image(image)
-            except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+            except (UnidentifiedImageError, UnboundLocalError) as e: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
-                image_url = None
+                image_url = ''
             except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
                 st.markdown("Could not display image. Received the following error message: " + str(e))
+                image_url = ''
     #Create a summary of the text, where 'st.session_state.text_summary' is ''
     text_summary = Helper.summarize_text(st.session_state.text_summary, response_text)
     #Save the summary in a streamlit session state variable
-    print(text_summary)
     st.session_state.text_summary = text_summary
     #Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
@@ -181,11 +179,12 @@ def iterative_response_generation(prompt):
                 # display the image
                 image = Image.open(BytesIO(requests.get(image_url).content))
                 st.image(image)
-            except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+            except (UnidentifiedImageError, UnboundLocalError) as e: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
-                image_url = None
+                image_url = ''
             except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
                 st.markdown("Could not display image. Received the following error message: " + str(e))
+                image_url = ''
         #Create an informative comment for the user
         st.write("Choose an option on how to extend the Bedtime Story")
         #Create the keywords for the three options
@@ -296,7 +295,6 @@ def create_option_content(prompt,keywords,response_text):
     # Create a summary of the text
     text_summary = Helper.summarize_text(st.session_state.text_summary,response_text)
     # Save the summary in a streamlit session state variable
-    print(text_summary)
     st.session_state.text_summary = text_summary
     #To make sure that the input field is enabled
     st.session_state.toggle = True
@@ -359,11 +357,12 @@ def create_final_story():
                 # display the image
                 image = Image.open(BytesIO(requests.get(image_url).content))
                 st.image(image)
-            except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+            except (UnidentifiedImageError, UnboundLocalError) as e: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
-                image_url = None
+                image_url = ''
             except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
                 st.markdown("Could not display image. Received the following error message: " + str(e))
+                image_url = ''
     #Concatenate the strings
     content = header + " \n\n " + response_text
     # Append the text messages into the streamlit session state variable
@@ -437,7 +436,7 @@ def main():
                     #displays the image
                     image = Image.open(BytesIO(requests.get(message["image"]).content))
                     st.image(image)
-                except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
+                except (UnidentifiedImageError, UnboundLocalError, requests.exceptions.MissingSchema) as e: #Catch potential error messages that could occur.
                     st.markdown("***Image Couldn't be loaded***")
             #Displays the option for the last keywords completion, to complete the story
             if i == len(st.session_state.messages) - 1:
@@ -457,19 +456,14 @@ def main():
 
     #Create the hint for the user how to complete the story
     st.sidebar.markdown("***Hint***: \n\nTo complete the story please enter: \n\n 'Complete the story'")
-    prompt = st.chat_input("Feed me with ideas for a Bedtime story... ", key=input1_key, disabled=(st.session_state.complete_story or toggle_input()))
     # React to user input
-    if prompt:
+    if prompt:=st.chat_input("Feed me with ideas for a Bedtime story... ", key=input1_key, disabled=(st.session_state.complete_story or toggle_input())):
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(prompt)
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-    #Checks if the last message was the assistant or the user as the assistant should only come after the user
-    #try:
-        #if st.session_state.messages[-1]["role"] != "assistant":
-            #Checks if the user wants to complete the story
         if 'complete the story' not in prompt.lower():
             #Decides on whether it is the first conversation on an iterative conversation step
             if len(st.session_state.text_summary) ==0:
@@ -480,8 +474,6 @@ def main():
             complete_story()
         #Rerun the Application to properly show the additional content.
         st.rerun()
-    #except IndexError as e:
-        #st.write("Start your Story")
 
 
 

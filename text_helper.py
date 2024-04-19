@@ -40,44 +40,6 @@ class TextHelper:
 
         return text_to_summarize
 
-    def summarize_text_v2(self, prev_text, text, max_tokens=2200):
-        """
-        Summarizes the generated text with the previously given responses of openai
-        :param prev_text: a string containing the previously generated response
-        :param text: a string containg the response
-        :param model: the model of openai that is being used to create the responses
-        :return: generate a string containing the summary
-        """
-        print("loading")
-        # Load pre-trained BART model and tokenizer
-        model_name = 'facebook/bart-large'  # -cnn'
-        tokenizer = BartTokenizer.from_pretrained(model_name)
-        bart_model = BartForConditionalGeneration.from_pretrained(model_name)
-        print("Done loading")
-        # concatenate the text_summary with the response_text
-        text_to_summarize = prev_text + "\n\n" + text
-        #Count the number of tokens that openai recognizes
-        num_tokens = self.token_counts(text_to_summarize)
-        #Set the number of clusters and sentences for each cluster
-        max_length_token = 1024
-        min_length = 200
-        max_length_sum =500
-        num_beans = 8
-        #Loops as long as the number of tokens is bigger than xxx
-        while num_tokens > max_tokens:
-            # generate the summary
-            text_to_summarize = self.generate_summary_v2(text_to_summarize, max_length_token=max_length_token, num_beans=num_beans, min_length=min_length, max_length_sum=max_length_sum)
-            #reduce dimensionality of summary
-            max_length_token = max_length_token/20
-            if max_length_sum <= min_length:
-                min_length=min_length/5
-            else:
-                max_length_sum=max_length_sum/20
-            #counts the number of tokens that openapi recognizes
-            num_tokens = self.token_counts(text_to_summarize)
-
-        return text_to_summarize
-
     def token_counts(self,text):
         """
         counts the number of tokens in a text message that openai recognizes
@@ -139,22 +101,6 @@ class TextHelper:
         return summary
 
     from transformers import BartForConditionalGeneration, BartTokenizer
-    def generate_summary_v2(self,text, max_length_token,num_beans, min_length, max_length_sum):
-        print("loading")
-        # Load pre-trained BART model and tokenizer
-        model_name = 'facebook/bart-large'  # -cnn'
-        tokenizer = BartTokenizer.from_pretrained(model_name)
-        bart_model = BartForConditionalGeneration.from_pretrained(model_name)
-        print("Done loading")
-        # Tokenize input text
-        inputs = self.Barttokenizer([text], max_length=max_length_token, return_tensors='pt', truncation=True)
-
-        # Generate summary using pooled_output from BERT
-        summary_ids = self.Bartmodel.generate(inputs['input_ids'], num_beams=num_beans, length_penalty=1.5, min_length=min_length, max_length=max_length_sum, early_stopping=True)
-
-        # Decode the summary tokens back to text
-        summary = self.Barttokenizer.decode(summary_ids[0], skip_special_tokens=True)
-        return summary
 
     def summarize_text_for_image(self, text_summary, response_text, num_clusters=4, num_sentences_per_cluster=1):
         """
@@ -169,22 +115,6 @@ class TextHelper:
         text_to_summarize = text_summary + "\n" + response_text
         #generate the summary
         text_to_summarize = self.generate_semantic_summary(text_to_summarize,num_clusters=num_clusters, num_sentences_per_cluster=num_sentences_per_cluster)
-        #return the summary
-        return text_to_summarize
-
-    def summarize_text_for_image_v2(self, text_summary, response_text, max_length_token = 3000, num_beans = 10, min_length = 700, max_length_sum = 1500):
-        """
-        Summarize the text for the image prompt
-        :param text_summary: previous text summary
-        :param response_text: newly created content
-        :param num_clusters: number of clusters that the summary should build
-        :param num_sentences_per_cluster: number of sentences for each clusters that the summary should contain
-        :return: the final summary as a string
-        """
-        #concatenate the text_summary with the response_text
-        text_to_summarize = text_summary + "\n" + response_text
-        #generate the summary
-        text_to_summarize = self.generate_summary_v2(text_to_summarize,max_length_token=max_length_token, num_beans=num_beans, min_length=min_length, max_length_sum=max_length_sum)
         #return the summary
         return text_to_summarize
 
@@ -206,10 +136,6 @@ class TextHelper:
         return max_tokens - tokens_used - setup_loss
 
 if __name__ == '__main__':
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-large')
-    bart_model = BartForConditionalGeneration.from_pretrained('facebook/bart-large')
-    storage = TextHelper("gpt-3.5-turbo")
-    print("Done Loading...")
     text ="""Once upon a time, in a faraway land, there was a magical castle that stood tall and proud against the stormy night sky. The castle was made of shining stones that sparkled in the moonlight, and it had towering turrets that reached up to the stars.
 
 Outside, rain poured down and lightning flashed across the sky, but inside the castle walls, all was warm and cozy. The flickering candlelight cast dancing shadows on the walls, making the castle feel like a mysterious and enchanting place.
