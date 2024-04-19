@@ -191,5 +191,12 @@ With a resolute gaze, Prince James braced himself for the unknown adversary that
     #list_json = json.dumps(list_of_dicts)
     #print(type(list_str))
     #print(type(list_json))
-    print(storage.summarize_text(text,text3,1000))
+    #print(storage.summarize_text(text,text3,1000))
+    test = {
+        "List 1": ["Knight", "Steed", "Fortress"],
+        "List 2": ["Dusk", "Golden Light", "Towering Walls"],
+        "List 3": ["Courage", "Determination", "Mystery"]
+    }
+    print(', '.join(test["List 1"]))
+
 

@@ -199,15 +199,19 @@ def iterative_response_generation(prompt):
                 {"role": "assistant", "content": response_text},
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
             ]
-        #alternative with reduced number of tokens
-        if Helper.max_token_calculator(option_message)<20:
-            option_message =[
-                {"role": "system",
-                 "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-                {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
-                {"role": "assistant", "content": st.session_state.text_summary},
-                {"role": "user",
-                 "content": "Create a list of three key words just seperated by commas to extend the story, with the following input: " + prompt}]
+        option_test = [
+            {"role": "system",
+             "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
+            {"role": "user",
+             "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
+            {"role": "assistant", "content": st.session_state.text_summary},
+            {"role": "user",
+             "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
+            {"role": "assistant", "content": response_text},
+            {"role": "user",
+             "content": "Create three lists, each containing a list of three key words just seperated by commas in JSON format to extend the story, with the following input: " + prompt}
+        ]
+        allowed_tokens = Helper.max_token_calculator(option_test)
         # checks if the message is senitized
         mod_bool = moderation_check(option_message)
         # if it is senitized it should not give an answer
@@ -215,29 +219,20 @@ def iterative_response_generation(prompt):
             st.write("The input is senitized please use an appropriate prompt")
             return None
         #API call for generating the first option
-        option_1 = client.chat.completions.create(
+        options = client.chat.completions.create(
             model=st.session_state["openai_model"],
             #gives as much contentext as possible while staying cost efficient
-            messages= option_message,
+            messages= option_test,
             #limits the output space such that only 1-3 keywords are returned
-            max_tokens=20
+            max_tokens=allowed_tokens
         )
-        # API call for the second option
-        option_2 = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            # gives as much contentext as possible while staying cost efficient
-            messages=option_message,
-            # limits the output space such that only 1-3 keywords are returned
-            max_tokens=20
-        )
-        # API call for the third option
-        option_3 = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            # gives as much contentext as possible while staying cost efficient
-            messages=option_message,
-            # limits the output space such that only 1-3 keywords are returned
-            max_tokens=20
-        )
+        JSON_option = options.choices[0].message.content
+        print(type(JSON_option))
+        JSON_option = eval(JSON_option)
+        print(JSON_option)
+        option_1 = ', '.join(list(JSON_option.values())[0])
+        option_2 = ', '.join(list(JSON_option.values())[1])
+        option_3 = ', '.join(list(JSON_option.values())[2])
         # Create a summary of the text
         text_summary = Helper.summarize_text(st.session_state.text_summary, response_text)
         # Save the summary in a streamlit session state variable
@@ -308,7 +303,7 @@ def create_final_story():
     message = [
         {"role": "system",
          "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-        {"role": "user", "content": "Create a creative and engaging bedtime story, with a maximum of 1000 words, for a child while using the following summary: " + st.session_state.text_summary}
+        {"role": "user", "content": "Create a creative, engaging, and extensive bedtime story, with a maximum of 1500 words, for a child while using the following summary: " + st.session_state.text_summary}
     ]
     # calculate the allowed tokens
     allowed_tokens = Helper.max_token_calculator(message)
@@ -443,16 +438,16 @@ def main():
                 if "option1" in message:
                     # Provides the user with the three options as buttons with a text above showing the number of option it displays
                     st.write("Option 1")
-                    st.button(message["option1"].choices[0].message.content, key=button1_key, on_click=create_option_content,
-                              args=[st.session_state.option_prompt, message["option1"].choices[0].message.content, st.session_state.iterative_scenary_response])
+                    st.button(message["option1"], key=button1_key, on_click=create_option_content,
+                              args=[st.session_state.option_prompt, message["option1"], st.session_state.iterative_scenary_response])
                 if "option2" in message:
                     st.write("Option 2")
-                    st.button(message["option2"].choices[0].message.content, key=button2_key, on_click=create_option_content,
-                              args=[st.session_state.option_prompt, message["option2"].choices[0].message.content, st.session_state.iterative_scenary_response])
+                    st.button(message["option2"], key=button2_key, on_click=create_option_content,
+                              args=[st.session_state.option_prompt, message["option2"], st.session_state.iterative_scenary_response])
                 if "option3" in message:
                     st.write("Option 3")
-                    st.button(message["option3"].choices[0].message.content, key=button3_key, on_click=create_option_content,
-                              args=[st.session_state.option_prompt, message["option3"].choices[0].message.content, st.session_state.iterative_scenary_response])
+                    st.button(message["option3"], key=button3_key, on_click=create_option_content,
+                              args=[st.session_state.option_prompt, message["option3"], st.session_state.iterative_scenary_response])
 
     #Create the hint for the user how to complete the story
     st.sidebar.markdown("***Hint***: \n\nTo complete the story please enter: \n\n 'Complete the story'")
