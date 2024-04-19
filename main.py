@@ -1,4 +1,6 @@
 #Import to get the helper functions place in the text_storage file
+from transformers import BartTokenizer, BartForConditionalGeneration
+
 import text_helper
 
 #Import Streamlit and the openai API
@@ -9,6 +11,8 @@ from openai import OpenAI, BadRequestError
 from PIL import Image, UnidentifiedImageError
 import requests
 from io import BytesIO
+
+
 
 #Generate unique keys for the 4 display objects
 button1_key = "button1"
@@ -21,8 +25,9 @@ input2_key = "input2"
 
 # Set OpenAI API key from Streamlit secrets file in the path ".streamlit/secrets.toml"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-gpt_model = "gpt-4" #"gpt-3.5-turbo"
+gpt_model = "gpt-3.5-turbo" #"gpt-4"
 
+Helper = text_helper.TextHelper(gpt_model)
 
 def moderation_check(input_message):
     """
@@ -64,7 +69,7 @@ def first_response_generation(prompt):
                 {"role": "user", "content": "Describe the context for a bedtime story using the following prompt:"+prompt+"\n Add a cliffhanger at the end of the story."}
             ]
         #calculate the allowed tokens
-        allowed_tokens = text_helper.max_token_calculator(message,gpt_model)
+        allowed_tokens = Helper.max_token_calculator(message)
         #checks if the message is senitized
         mod_bool = moderation_check(message)
         #if it is senitized it should not give an answer
@@ -81,7 +86,7 @@ def first_response_generation(prompt):
         #create the response text as a stream
         response_text = st.write_stream(stream)
         #create an image prompt with summarized data
-        image_prompt = "Create an image in a cartoon like style for the following context:" + text_helper.summarize_text_for_image('', response_text,5, 2)
+        image_prompt = "Create an image in a cartoon like style for the following context:" + Helper.summarize_text_for_image('', response_text,5,2)
         # checks if the message is senitized
         mod_bool=moderation_check(image_prompt)
         # if it is senitized it should not give an answer
@@ -108,11 +113,13 @@ def first_response_generation(prompt):
                 st.image(image)
             except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
+                image_url = None
             except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
                 st.markdown("Could not display image. Received the following error message: " + str(e))
     #Create a summary of the text, where 'st.session_state.text_summary' is ''
-    text_summary = text_helper.summarize_text(st.session_state.text_summary, response_text, gpt_model)
+    text_summary = Helper.summarize_text(st.session_state.text_summary, response_text)
     #Save the summary in a streamlit session state variable
+    print(text_summary)
     st.session_state.text_summary = text_summary
     #Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url})
@@ -133,7 +140,7 @@ def iterative_response_generation(prompt):
                 {"role": "user", "content": "While taking the summarized fairytale into account; create and describe a scenary in less than 150 words for the following prompt: "+prompt}
             ]
         # calculate the allowed tokens
-        allowed_tokens = text_helper.max_token_calculator(message, gpt_model)
+        allowed_tokens = Helper.max_token_calculator(message)
         # checks if the message is senitized
         mod_bool = moderation_check(message)
         # if it is senitized it should not give an answer
@@ -149,7 +156,7 @@ def iterative_response_generation(prompt):
         #create the response text as a stream
         response_text = st.write_stream(stream)
         #creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
-        image_prompt = "Create an image in a cartoon like style for the following context:" + text_helper.summarize_text_for_image(st.session_state["text_summary"],response_text,5,2)
+        image_prompt = "Create an image in a cartoon like style for the following context:" + Helper.summarize_text_for_image('', response_text, 5, 2)
         # checks if the message is senitized
         mod_bool = moderation_check(image_prompt)
         # if it is senitized it should not give an answer
@@ -176,6 +183,7 @@ def iterative_response_generation(prompt):
                 st.image(image)
             except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
+                image_url = None
             except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
                 st.markdown("Could not display image. Received the following error message: " + str(e))
         #Create an informative comment for the user
@@ -193,7 +201,7 @@ def iterative_response_generation(prompt):
                 {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
             ]
         #alternative with reduced number of tokens
-        if text_helper.max_token_calculator(option_message,gpt_model)<9:
+        if Helper.max_token_calculator(option_message)<20:
             option_message =[
                 {"role": "system",
                  "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
@@ -231,7 +239,10 @@ def iterative_response_generation(prompt):
             # limits the output space such that only 1-3 keywords are returned
             max_tokens=20
         )
-
+        # Create a summary of the text
+        text_summary = Helper.summarize_text(st.session_state.text_summary, response_text)
+        # Save the summary in a streamlit session state variable
+        st.session_state.text_summary = text_summary
         # Saves the first part of the interaction
         st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url, "option1":option_1, "option2":option_2, "option3":option_3})
         #save the prompt
@@ -264,7 +275,7 @@ def create_option_content(prompt,keywords,response_text):
                 {"role": "user", "content": "Creatively extend the story from the fairytale summary while taking the keyword of "+keywords+" into acount. Thereby reiterate on the last scenary and add a cliff hanger at the end of the story"}
             ]
         # calculate the allowed tokens
-        allowed_tokens = text_helper.max_token_calculator(message, gpt_model)
+        allowed_tokens = Helper.max_token_calculator(message)
         # checks if the message is senitized
         mod_bool = moderation_check(message)
         # if it is senitized it should not give an answer
@@ -283,8 +294,9 @@ def create_option_content(prompt,keywords,response_text):
     # Append the text messages into the streamlit session state variable
     st.session_state.messages.append({"role": "assistant", "content": response_text})
     # Create a summary of the text
-    text_summary = text_helper.summarize_text(st.session_state.text_summary,response_text,gpt_model)
+    text_summary = Helper.summarize_text(st.session_state.text_summary,response_text)
     # Save the summary in a streamlit session state variable
+    print(text_summary)
     st.session_state.text_summary = text_summary
     #To make sure that the input field is enabled
     st.session_state.toggle = True
@@ -301,7 +313,7 @@ def create_final_story():
         {"role": "user", "content": "Create a creative and engaging bedtime story, with a maximum of 1000 words, for a child while using the following summary: " + st.session_state.text_summary}
     ]
     # calculate the allowed tokens
-    allowed_tokens = text_helper.max_token_calculator(message, gpt_model)
+    allowed_tokens = Helper.max_token_calculator(message)
     # checks if the message is senitized
     mod_bool = moderation_check(message)
     # if it is senitized it should not give an answer
@@ -322,7 +334,7 @@ def create_final_story():
         # create the response text as a stream
         response_text = st.write_stream(stream)
         # creates the prompt of the image. Thereby, we use a summary of the response to create a cost efficient dialogue
-        image_prompt = "Create an image in a cartoon like style for the following context:" + text_helper.summarize_text_for_image('',response_text,5,2)
+        image_prompt = "Create an image in a cartoon like style for the following context:" + Helper.summarize_text_for_image('', response_text, 5, 2)
         # checks if the message is senitized
         mod_bool = moderation_check(image_prompt)
         # if it is senitized it should not give an answer
@@ -349,6 +361,7 @@ def create_final_story():
                 st.image(image)
             except UnidentifiedImageError or UnboundLocalError: #Catch potential error messages that could occur.
                 st.markdown("***Image Couldn't be loaded***")
+                image_url = None
             except BadRequestError as e: #Further Exception that should be caught in the case the moderation doesn't catch a senorized input
                 st.markdown("Could not display image. Received the following error message: " + str(e))
     #Concatenate the strings
@@ -454,21 +467,21 @@ def main():
         st.session_state.messages.append({"role": "user", "content": prompt})
 
     #Checks if the last message was the assistant or the user as the assistant should only come after the user
-    try:
-        if st.session_state.messages[-1]["role"] != "assistant":
+    #try:
+        #if st.session_state.messages[-1]["role"] != "assistant":
             #Checks if the user wants to complete the story
-            if 'complete the story' not in prompt.lower():
-                #Decides on whether it is the first conversation on an iterative conversation step
-                if len(st.session_state.text_summary) ==0:
-                    first_response_generation(prompt)
-                else:
-                    iterative_response_generation(prompt)
+        if 'complete the story' not in prompt.lower():
+            #Decides on whether it is the first conversation on an iterative conversation step
+            if len(st.session_state.text_summary) ==0:
+                first_response_generation(prompt)
             else:
-                complete_story()
-            #Rerun the Application to properly show the additional content.
-            st.rerun()
-    except IndexError as e:
-        st.write("Start your Story")
+                iterative_response_generation(prompt)
+        else:
+            complete_story()
+        #Rerun the Application to properly show the additional content.
+        st.rerun()
+    #except IndexError as e:
+        #st.write("Start your Story")
 
 
 
