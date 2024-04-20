@@ -216,46 +216,13 @@ def iterative_response_generation(prompt):
             #limits the output space such that only 1-3 keywords are returned
             max_tokens=allowed_tokens
         )
-        #Extract the AI contnent
-        JSON_option = options.choices[0].message.content
-        try:
-            #transform the string into an dictionary
-            JSON_option = eval(JSON_option)
-            #extract the three options and place them into strings
-            try:
-                list_option_1 = list(JSON_option.values())[0]
-                if "keyword" in list_option_1[0].lower():
-                    option_1 = ' '
-                else:
-                    option_1 = ', '.join(list_option_1)
-            except IndexError as e:
-                option_1 = ' '
-            try:
-                list_option_2 = list(JSON_option.values())[1]
-                if "keyword" in list_option_2[0].lower():
-                    option_2 = ' '
-                else:
-                    option_2 = ', '.join(list_option_2)
-            except IndexError as e:
-                option_2 = ' '
-            try:
-                list_option_3 = list(JSON_option.values())[2]
-                if "keyword" in list_option_3[0].lower():
-                    option_3 = ' '
-                else:
-                    option_3 = ', '.join(list_option_3)
-            except IndexError as e:
-                option_3 = ' '
-        except SyntaxError as e:
-            option_1 = ' '
-            option_2 = ' '
-            option_3 = ' '
+        option_list = Helper.list_of_options(options)
         # Create a summary of the text
         text_summary = Helper.summarize_text(st.session_state.text_summary, response_text)
         # Save the summary in a streamlit session state variable
         st.session_state.text_summary = text_summary
         # Saves the first part of the interaction
-        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url, "option1":option_1, "option2":option_2, "option3":option_3})
+        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": image_url, "option1":option_list[0], "option2":option_list[1], "option3":option_list[2]})
         #save the prompt
         st.session_state.option_prompt = prompt
         #save the response from the LLM

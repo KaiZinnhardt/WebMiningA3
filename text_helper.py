@@ -133,6 +133,43 @@ class TextHelper:
         #return the maximum number of tokens that are allowed as a response.
         return max_tokens - tokens_used - setup_loss
 
+    def list_of_options(self,options):
+        # Extract the AI contnent
+        JSON_option = options.choices[0].message.content
+        try:
+            # transform the string into an dictionary
+            JSON_option = eval(JSON_option)
+            # extract the three options and place them into strings
+            try:
+                list_option_1 = list(JSON_option.values())[0]
+                if "keyword" in list_option_1[0].lower():
+                    option_1 = ' '
+                else:
+                    option_1 = ', '.join(list_option_1)
+            except IndexError as e:
+                option_1 = ' '
+            try:
+                list_option_2 = list(JSON_option.values())[1]
+                if "keyword" in list_option_2[0].lower():
+                    option_2 = ' '
+                else:
+                    option_2 = ', '.join(list_option_2)
+            except IndexError as e:
+                option_2 = ' '
+            try:
+                list_option_3 = list(JSON_option.values())[2]
+                if "keyword" in list_option_3[0].lower():
+                    option_3 = ' '
+                else:
+                    option_3 = ', '.join(list_option_3)
+            except IndexError as e:
+                option_3 = ' '
+        except SyntaxError as e:
+            option_1 = ' '
+            option_2 = ' '
+            option_3 = ' '
+        return (option_1, option_2, option_3)
+
 if __name__ == '__main__':
     text = "{'List1': ['Courage', 'Determination', 'Adventure'], 'List2': ['Mystery', 'Intrigue', 'Challenge'], 'List3': ['Friendship', 'Bravery', 'Victory']}"
     text_dict = eval(text)
