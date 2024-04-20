@@ -190,16 +190,6 @@ def iterative_response_generation(prompt):
         #Create the keywords for the three options
         #API call for the first option
         option_message = [
-                {"role": "system",
-                 "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
-                {"role": "user", "content": "Can you please summarize the previous bedtime story. Later use this summary to extend the Bedtime Story."},
-                {"role": "assistant", "content": st.session_state.text_summary},
-                {"role": "user",
-                 "content": "Create and just describe ascenary in less than 150 words for the following prompt, while taking the summary into account: " + prompt},
-                {"role": "assistant", "content": response_text},
-                {"role": "user", "content": "Create three key words just seperated by commas to extend the story, with the following input: " + prompt}
-            ]
-        option_test = [
             {"role": "system",
              "content": "You are a helpful assistant that replies in a tone for a 4 year old kid, for which you create a bedtime story."},
             {"role": "user",
@@ -211,7 +201,7 @@ def iterative_response_generation(prompt):
             {"role": "user",
              "content": "Create three lists, each containing a list of three key words just seperated by commas in JSON format to extend the story, with the following input: " + prompt}
         ]
-        allowed_tokens = Helper.max_token_calculator(option_test)
+        allowed_tokens = Helper.max_token_calculator(option_message)
         # checks if the message is senitized
         mod_bool = moderation_check(option_message)
         # if it is senitized it should not give an answer
@@ -222,17 +212,44 @@ def iterative_response_generation(prompt):
         options = client.chat.completions.create(
             model=st.session_state["openai_model"],
             #gives as much contentext as possible while staying cost efficient
-            messages= option_test,
+            messages= option_message,
             #limits the output space such that only 1-3 keywords are returned
             max_tokens=allowed_tokens
         )
+        #Extract the AI contnent
         JSON_option = options.choices[0].message.content
-        print(type(JSON_option))
-        JSON_option = eval(JSON_option)
-        print(JSON_option)
-        option_1 = ', '.join(list(JSON_option.values())[0])
-        option_2 = ', '.join(list(JSON_option.values())[1])
-        option_3 = ', '.join(list(JSON_option.values())[2])
+        try:
+            #transform the string into an dictionary
+            JSON_option = eval(JSON_option)
+            #extract the three options and place them into strings
+            try:
+                list_option_1 = list(JSON_option.values())[0]
+                if "keyword" in list_option_1[0].lower():
+                    option_1 = ' '
+                else:
+                    option_1 = ', '.join(list_option_1)
+            except IndexError as e:
+                option_1 = ' '
+            try:
+                list_option_2 = list(JSON_option.values())[1]
+                if "keyword" in list_option_2[0].lower():
+                    option_2 = ' '
+                else:
+                    option_2 = ', '.join(list_option_2)
+            except IndexError as e:
+                option_2 = ' '
+            try:
+                list_option_3 = list(JSON_option.values())[2]
+                if "keyword" in list_option_3[0].lower():
+                    option_3 = ' '
+                else:
+                    option_3 = ', '.join(list_option_3)
+            except IndexError as e:
+                option_3 = ' '
+        except SyntaxError as e:
+            option_1 = ' '
+            option_2 = ' '
+            option_3 = ' '
         # Create a summary of the text
         text_summary = Helper.summarize_text(st.session_state.text_summary, response_text)
         # Save the summary in a streamlit session state variable
@@ -436,6 +453,7 @@ def main():
             #Displays the option for the last keywords completion, to complete the story
             if i == len(st.session_state.messages) - 1:
                 if "option1" in message:
+                    st.markdown("#### Choose an option on how to extend the Bedtime Story")
                     # Provides the user with the three options as buttons with a text above showing the number of option it displays
                     st.write("Option 1")
                     st.button(message["option1"], key=button1_key, on_click=create_option_content,
@@ -460,7 +478,7 @@ def main():
         st.session_state.messages.append({"role": "user", "content": prompt})
 
         if 'complete the story' not in prompt.lower():
-            #Decides on whether it is the first conversation on an iterative conversation step
+            #Decides on whether it is the first conversation or an iterative conversation step
             if len(st.session_state.text_summary) ==0:
                 first_response_generation(prompt)
             else:
