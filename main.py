@@ -186,7 +186,7 @@ def iterative_response_generation(prompt):
                 st.markdown("Could not display image. Received the following error message: " + str(e))
                 image_url = ''
         #Create an informative comment for the user
-        st.write("Choose an option on how to extend the Bedtime Story")
+        st.markdown("#### Choose an Option on how to Extend the Bedtime Story")
         #Create the keywords for the three options
         #API call for the first option
         option_message = [
@@ -420,7 +420,7 @@ def main():
             #Displays the option for the last keywords completion, to complete the story
             if i == len(st.session_state.messages) - 1:
                 if "option1" in message:
-                    st.markdown("#### Choose an option on how to extend the Bedtime Story")
+                    st.markdown("#### Choose an Option on how to Extend the Bedtime Story")
                     # Provides the user with the three options as buttons with a text above showing the number of option it displays
                     st.write("Option 1")
                     st.button(message["option1"], key=button1_key, on_click=create_option_content,
@@ -443,8 +443,7 @@ def main():
             st.markdown(prompt)
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
-
-        if 'complete the story' not in prompt.lower():
+        if ('complete the story' not in prompt.lower()) or (len(prompt) > len('complete the story')):
             #Decides on whether it is the first conversation or an iterative conversation step
             if len(st.session_state.text_summary) ==0:
                 first_response_generation(prompt)
