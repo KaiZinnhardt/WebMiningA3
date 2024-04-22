@@ -5,8 +5,8 @@
 2. Download all the necessary libraries, which are placed in the ``requirements.txt`` file. The installation of these files can be done by executing the following command: ``pip install -r requirements.txt``
 3. Create a folder called streamlit in your working directory and create the  ``secrets.toml`` file in the streamlit folder.
 4. Place your OpenAI key in this file. Note: please name the key variable ``OPENAI_API_KEY``.
-5. Run the streamlit application by running the ``streamlit run main.py``
+5. Run the streamlit application by running the ``streamlit run main.py`` file in the terminal.
 
 ## Prompts:
-In the first prompt, please set a scene where the story should take place. The response will contain questions on how to continue the story. When using these questions to continue the story, please elaborate thoroughly on the question so that the bot clearly knows what to answer. Nevertheless, it is also possible to extend the story without the usage of the generated questions.
+In the first prompt, please set a scene where the story should take place. The response will contain questions on how to continue the story. When using these questions to continue the story, please elaborate thoroughly on the question so that the bot clearly knows how to extend the bedtime story. Nevertheless, it is also possible to extend the story without the usage of the generated questions.
 
