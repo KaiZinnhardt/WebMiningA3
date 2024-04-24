@@ -373,6 +373,15 @@ def toggle_input():
     return st.session_state.toggle
 
 
+def reset():
+    #initialize values
+    st.session_state.messages = []
+    st.session_state.text_summary = ''
+    st.session_state.complete_story = False
+    st.session_state.option_prompt = ""
+    st.session_state.iterative_scenary_response = ""
+    st.session_state.toggle = True
+
 def main():
     #first_iteration = True
     st.title("Fairytale Generator")
@@ -401,7 +410,7 @@ def main():
     if "iterative_scenary_response" not in st.session_state:
         st.session_state.iterative_scenary_response = ""
 
-    # Initialize Finished Story
+    # Initialize toggle value
     if "toggle" not in st.session_state:
         st.session_state.toggle = True
 
@@ -436,6 +445,7 @@ def main():
 
     #Create the hint for the user how to complete the story
     st.sidebar.markdown("***Hint***: \n\nTo complete the story please enter: \n\n 'Complete the story'")
+    st.sidebar.button("Reset the Bedtime Story", key=button4_key, on_click=reset)
     # React to user input
     if prompt:=st.chat_input("Feed me with ideas for a Bedtime story... ", key=input1_key, disabled=(st.session_state.complete_story or toggle_input())):
         # Display user message in chat message container
